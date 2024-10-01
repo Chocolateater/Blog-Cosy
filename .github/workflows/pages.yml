@@ -1,31 +1,65 @@
-name: Deploy to GitHub Pages
-
+# 定义一个名为 Pages 的动作
+name: Pages
+ 
+# 当有一个新的推送（push）到名为 hexo 的分支时，执行部署任务
 on:
   push:
     branches:
-      - main  # 触发部署的分支
-
+      - hexo
+ 
+# 定义一个名为 build-and-deploy 的 job
 jobs:
-  deploy:
+  build-and-deploy:
+    # 在 Ubuntu 最新版本上运行此 job
     runs-on: ubuntu-latest
-
     steps:
-    - name: Check out repository
-      uses: actions/checkout@v2
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v2
-      with:
-        node-version: '20'  # 指定 Node.js 版本
-
-    - name: Install dependencies
-      run: npm install
-
-    - name: Build the project
-      run: npm run build
-
-    - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./public  # 指向 Hexo 生成的静态文件目录
+      # 检出 hexooo 分支的代码
+      - name: Checkout code from hexo branch
+        uses: actions/checkout@v4
+        with:
+          ref: hexo
+          persist-credentials: false
+ 
+      # 设置 Git 用户信息
+      - name: Set up Git user information
+        run: |
+          git config --global user.name "XXX"
+          git config --global user.email "XXX@XXX.com"
+ 
+      # 设置 Node.js 20.x 版本
+      - name: Set up Node.js 20.x
+        uses: actions/setup-node@v2
+        with:
+          node-version: '20.11.1'
+  
+      # 全局安装 Hexo
+      - name: Install Hexo globally
+        run: |
+          npm install -g hexo-cli
+          npm install
+ 
+      # 缓存 NPM 依赖
+      - name: Cache NPM dependencies
+        uses: actions/cache@v2
+        with:
+          path: node_modules
+          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.OS }}-node-
+ 
+      # 使用环境变量 ACTION_DEPLOY_KEY 部署到主分支
+      - name: Deploy to main branch
+        env:
+          ACTION_DEPLOY_KEY: ${{ secrets.HEXO_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$ACTION_DEPLOY_KEY" > ~/.ssh/id_rsa
+          chmod 700 ~/.ssh
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+      # 部署
+      - name: Deploy
+        run: |
+          hexo clean
+          hexo generate
+          hexo deploy
